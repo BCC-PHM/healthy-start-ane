@@ -2,13 +2,12 @@
 
 import pandas as pd
 import numpy as np
-import tkinter as tk
-from tkinter.filedialog import askopenfilename
-import ctypes  # An included library with Python install.   
+import ctypes
 import sys
+import easygui
 
-tk.Tk().withdraw()
-file_name = askopenfilename()
+
+file_name = easygui.fileopenbox()
 
 try:
     # Try to open the excel file
@@ -27,7 +26,7 @@ df = pd.concat(df_list).dropna(subset = ["Vitamins Provided"])
 
 # Convert age to number of years
 df["Age (Years)"] = df["Age"].str.extract(r'^([\d]+) year').fillna("0")
-df["Age (Years)"] = pd.to_numeric(df["Age (Years)"])
+df["Age (Years)"] = pd.to_numeric(df["Age (Years)"], downcast='integer')
 
 ### Standardise vitamin numbers ###
 
@@ -49,6 +48,51 @@ df["Total vitamins provided"] = df["Vitamins Provided"] + \
     df["Number of Silbings \nprovided with Vitamins"] + \
     df[" Vitamins provide for Mum "]
 
-print(df)
+### Fill Unknown Ethnicities ###
+df['Ethnicity'] = df['Ethnicity'].fillna("Unknown")
 
-# file_name = "../data/Healthy Start Vitamins.xlsx"
+### Join IMDs ###
+imds = pd.read_csv("../data/birmingham-imds.csv", 
+                   dtype = {'Postcode': str, 
+                            'IMD Quintile 2019': str})
+df = df.merge(imds, on='Postcode', how = "left")
+df['IMD Quintile 2019'] = df['IMD Quintile 2019'].fillna("Unknown")
+# Check if it's a Birmingham Postcode
+df["Birmingham Postcode"] = np.where(
+    df['IMD Quintile 2019'] != "Unknown", "Yes", 
+    np.where(df['Postcode'].isnull(), "Unknown", "No"))
+
+### Count by ###
+
+# ethnicity
+df_eth = df.groupby("Ethnicity")["Total vitamins provided"].sum().reset_index()
+
+# IMD
+df_imd = df.groupby("IMD Quintile 2019")["Total vitamins provided"].sum().reset_index()
+
+# In Birmingham
+df_brum = df.groupby("Birmingham Postcode")["Total vitamins provided"].sum().reset_index()
+
+### Save data ###
+
+# Request save name
+save_name = easygui.enterbox("Enter name for the new file. (Please don't include / or \\)")
+
+# Remove common file extensions
+for suffix in [".csv",".xls", ".xlsx"]:
+    save_name = save_name.replace(suffix, "")
+
+# Make full save path based on original file
+save_prefix = "\\".join(file_name.split("\\")[:-1])
+save_path = save_prefix + "\\" + save_name + ".xlsx"
+
+with pd.ExcelWriter(save_path) as writer:
+   
+    # use to_excel function and specify the sheet_name and index 
+    # to store the dataframe in specified sheet
+    df.to_excel(writer, sheet_name="Data", index=False)
+    df_eth.to_excel(writer, sheet_name="Ethnicity", index=False)
+    df_imd.to_excel(writer, sheet_name="IMD", index=False)
+    df_brum.to_excel(writer, sheet_name="In Birmingham", index=False)
+    
+print("Done.")
