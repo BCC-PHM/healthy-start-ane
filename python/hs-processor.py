@@ -5,9 +5,33 @@ import numpy as np
 import ctypes
 import sys
 import easygui
+import os
+import tkinter as tk
 
 
-file_name = easygui.fileopenbox()
+
+# Function to get the correct path to the data file
+def resource_path(relative_path):
+    try:
+        # PyInstaller creates a temporary folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+# Use the function to get the path to your CSV file
+csv_path = resource_path("data/birmingham-imds.csv")
+
+# Create a hidden root window to use as a parent
+root = tk.Tk()
+root.withdraw()  # Hide the main window
+
+# Get file path from user
+file_name = easygui.fileopenbox(title="Select a File", default="*.*")
+
+# Destroy the hidden root window after use
+root.destroy()
 
 try:
     # Try to open the excel file
@@ -16,6 +40,7 @@ except Exception:
     # If it fails to open, give error message
     ctypes.windll.user32.MessageBoxW(0, "Couldn't open Excel file. This is probably because the file is already open.", "Error!", 1)
     sys.exit()
+
     
     
 # Load all sheets
@@ -66,7 +91,7 @@ df["Total vitamins provided"] = df["Vitamins Provided"] + \
 df['Ethnicity'] = df['Ethnicity'].fillna("Unknown")
 
 ### Join IMDs ###
-imds = pd.read_csv("../data/birmingham-imds.csv", 
+imds = pd.read_csv(csv_path, 
                    dtype = {'Postcode': str, 
                             'IMD Quintile 2019': str})
 
@@ -90,8 +115,15 @@ df_brum = df.groupby("Birmingham Postcode")["Total vitamins provided"].sum().res
 
 ### Save data ###
 
+# Create a hidden root window to use as a parent
+root = tk.Tk()
+root.withdraw()  # Hide the main window
+
 # Request save name
 save_name = easygui.enterbox("Enter name for the new file. (Please don't include / or \\)")
+
+# Destroy the hidden root window after use
+root.destroy()
 
 # Remove common file extensions
 for suffix in [".csv",".xls", ".xlsx"]:
