@@ -28,20 +28,34 @@ df = pd.concat(df_list).dropna(subset = ["Vitamins Provided"])
 df["Age (Years)"] = df["Age"].str.extract(r'^([\d]+) year').fillna("0")
 df["Age (Years)"] = pd.to_numeric(df["Age (Years)"], downcast='integer')
 
-### Standardise vitamin numbers ###
 
-# Vitamins provided for current child
-df["Vitamins Provided"] = np.where(
-    df["Vitamins Provided"] == "Yes", 1, 0
-    )
+### Clean up Yes/No columns ###
+for col_i in ["Vitamins Provided", " Vitamins provide for Mum "]:
+    # Replace NA with "No"
+    df[col_i] = df[col_i].fillna("No")
+    # Replace 0 with "No"
+    df.loc[df[col_i] == 0, col_i] = "No"
+    # Replace 1 with "Yes"
+    df.loc[df[col_i] == 1, col_i] = "Yes"
+    # Standardise spaces and capitalisation
+    df[col_i] = [item.strip().title() for item in df[col_i]]
+    # Check that column is just "Yes" or "No"
+    assert all(df[col_i].isin(["Yes", "No"])), \
+        "Error: {} column consaints unexpected values".format(col_i)
+    # Convert to 1 and 0
+    df[col_i] = np.where(
+        df[col_i] == "Yes", 1, 0
+        )
 
 # Vitamins provided for siblings
-df["Number of Silbings \nprovided with Vitamins"] = df["Number of Silbings \nprovided with Vitamins"].fillna(0)
+df["Number of Silbings \nprovided with Vitamins"] = df["Number of Silbings \nprovided with Vitamins"].fillna(0.0)
+sibling_string_mask = df["Number of Silbings \nprovided with Vitamins"].apply(lambda x: isinstance(x, str))
+# S
+df.loc[sibling_string_mask, "Number of Silbings \nprovided with Vitamins"] = \
+    [item.strip().lower() for item in df.loc[sibling_string_mask, 
+                                             "Number of Silbings \nprovided with Vitamins"]]
+df.loc[df["Number of Silbings \nprovided with Vitamins"].isin(["na", "n/a"]), "Number of Silbings \nprovided with Vitamins"] = 0
 
-# Vitamins provided for mother
-df[" Vitamins provide for Mum "] = np.where(
-    df[" Vitamins provide for Mum "] == "Yes", 1, 0
-    )
 
 # Total vitamins
 df["Total vitamins provided"] = df["Vitamins Provided"] + \
@@ -55,6 +69,7 @@ df['Ethnicity'] = df['Ethnicity'].fillna("Unknown")
 imds = pd.read_csv("../data/birmingham-imds.csv", 
                    dtype = {'Postcode': str, 
                             'IMD Quintile 2019': str})
+
 df = df.merge(imds, on='Postcode', how = "left")
 df['IMD Quintile 2019'] = df['IMD Quintile 2019'].fillna("Unknown")
 # Check if it's a Birmingham Postcode
